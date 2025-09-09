@@ -88,7 +88,6 @@
       .btn{min-height:40px}
       textarea{min-height:160px}
     }
-
   </style>
 </head>
 <body>
@@ -152,6 +151,9 @@
               </div>
             </div>
 
+            <!-- NEW test vibration button -->
+            <button id="testVibrateBtn" class="btn ghost small">Test Vibration</button>
+
             <div class="meta">Tip: tap any Braille cell to feel a short vibration (if supported). Braille output is shown character-by-character and available in an aria-live region.</div>
           </div>
         </aside>
@@ -199,9 +201,7 @@
       ',':'⠂','.':'⠲','?':'⠦','!':'⠖',';':'⠆',':':'⠒','-':'⠤','(':'⠶',')':'⠶','"':'⠦',"'":"⠄"
     };
 
-    // digits map uses letters a-j but require numeric indicator ⠼ before a run of digits
     const digitMap = {'1':'⠁','2':'⠃','3':'⠉','4':'⠙','5':'⠑','6':'⠋','7':'⠛','8':'⠓','9':'⠊','0':'⠚'};
-
     const CAPITAL_INDICATOR = '⠠';
     const NUMERIC_INDICATOR = '⠼';
 
@@ -222,11 +222,11 @@
     const darkToggle = document.getElementById('darkToggle');
     const playSelectionBtn = document.getElementById('playSelectionBtn');
     const stopSelectionBtn = document.getElementById('stopSelectionBtn');
+    const testVibrateBtn = document.getElementById('testVibrateBtn');
 
     let synth = window.speechSynthesis;
     let currentUtterance = null;
 
-    // Helper: convert text to an array where each input character produces a braille string (may include indicators)
     function convertToBraillePerChar(text){
       const chars = Array.from(text);
       let result = [];
@@ -234,7 +234,6 @@
 
       for(let i=0;i<chars.length;i++){
         const ch = chars[i];
-        // handle digits: if digit and not inNumberRun -> add numeric indicator; continue numeric run until non-digit
         if(/\d/.test(ch)){
           if(!inNumberRun){
             inNumberRun = true;
@@ -244,7 +243,6 @@
           }
         } else {
           inNumberRun = false;
-          // letters
           if(/[A-Z]/.test(ch)){
             const lower = ch.toLowerCase();
             result.push(CAPITAL_INDICATOR + (baseMap[lower] || '⠿'));
@@ -255,7 +253,6 @@
           } else if(baseMap[ch]){
             result.push(baseMap[ch]);
           } else {
-            // unknown character fallback
             result.push('⠿');
           }
         }
@@ -272,7 +269,7 @@
       const text = inputText.value || '';
       const braillePerChar = convertToBraillePerChar(text);
 
-      brailleOutput.innerHTML = ''; // clear
+      brailleOutput.innerHTML = '';
 
       braillePerChar.forEach((b, idx) => {
         const span = document.createElement('span');
@@ -284,12 +281,24 @@
         span.title = `Original: "${text[idx] || 'space'}" → ${b}`;
         span.textContent = b;
 
-        // click/vibrate/highlight
         span.addEventListener('click', () => {
-          if(vibrateToggle.checked && navigator.vibrate){ navigator.vibrate(80); }
+          if (vibrateToggle.checked) {
+            if ("vibrate" in navigator) {
+              navigator.vibrate([100]);
+              console.log("Vibration triggered");
+            } else {
+              console.log("Vibration not supported");
+            }
+          }
           highlightCell(idx);
         });
-        span.addEventListener('keydown', (e) => { if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); span.click(); } });
+
+        span.addEventListener('keydown', (e) => { 
+          if(e.key === 'Enter' || e.key === ' ') { 
+            e.preventDefault(); 
+            span.click(); 
+          } 
+        });
 
         brailleOutput.appendChild(span);
       });
@@ -303,7 +312,6 @@
       if(el){ el.classList.add('highlight'); setTimeout(()=> el.classList.remove('highlight'),400); }
     }
 
-    // File upload handler
     fileInput.addEventListener('change', (e) => {
       const file = e.target.files && e.target.files[0];
       if(!file) return;
@@ -316,11 +324,9 @@
       reader.readAsText(file);
     });
 
-    // Buttons
     convertBtn.addEventListener('click', renderBraille);
     clearBtn.addEventListener('click', () => { inputText.value = ''; renderBraille(); fileInput.value = ''; if(synth) synth.cancel(); });
 
-    // Download braille or original
     downloadBtn.addEventListener('click', () => {
       const brailleText = Array.from(document.querySelectorAll('.braille .char')).map(s => s.textContent).join('');
       const blob = new Blob([brailleText], {type:'text/plain'});
@@ -331,14 +337,12 @@
       URL.revokeObjectURL(a.href);
     });
 
-    // Dark mode
     darkToggle.addEventListener('click', () => {
       const isDark = document.body.classList.toggle('dark');
       darkToggle.setAttribute('aria-pressed', String(isDark));
       darkToggle.textContent = isDark ? 'Light' : 'Dark';
     });
 
-    // Speech
     function speakText(text){
       if(!('speechSynthesis' in window)){
         alert('Speech Synthesis not supported in this browser.');
@@ -347,63 +351,71 @@
       if(synth.speaking) synth.cancel();
 
       const utter = new SpeechSynthesisUtterance(text);
-      utter.rate = parseFloat(speedRange.value) || 1;
+           utter.rate = parseFloat(speedRange.value) || 1;
       utter.pitch = 1;
       currentUtterance = utter;
 
-      // Try to highlight words using boundary events when supported
       utter.onboundary = (ev) => {
-        if(ev.name === 'word'){
-          // approximate: find which character index corresponds to the word by counting characters up to charIndex
-          // this is an approximation because charIndex counts original text characters
+        if (ev.name === 'word') {
           const charIndex = ev.charIndex || 0;
-          const idx = Math.min(charIndex, (inputText.value.length-1));
+          const idx = Math.min(charIndex, (inputText.value.length - 1));
           highlightCell(idx);
         }
       };
 
-      utter.onend = () => { currentUtterance = null; document.querySelectorAll('.char.highlight').forEach(el => el.classList.remove('highlight')); };
+      utter.onend = () => {
+        currentUtterance = null;
+        document.querySelectorAll('.char.highlight').forEach(el => el.classList.remove('highlight'));
+      };
 
       synth.speak(utter);
     }
 
+    // Full text reading
     readBtn.addEventListener('click', () => {
-      speakText(inputText.value.trim());
+      if (inputText.value.trim()) {
+        speakText(inputText.value);
+      }
     });
-    stopBtn.addEventListener('click', () => { if(synth) synth.cancel(); document.querySelectorAll('.char.highlight').forEach(el => el.classList.remove('highlight')); });
 
-    // Play selection: speak selected text or fallback to full text
+    // Stop reading
+    stopBtn.addEventListener('click', () => {
+      if (synth.speaking || synth.pending) synth.cancel();
+      document.querySelectorAll('.char.highlight').forEach(el => el.classList.remove('highlight'));
+    });
+
+    // Speed control
+    speedRange.addEventListener('input', () => {
+      speedValue.textContent = speedRange.value + "x";
+      if (currentUtterance) {
+        currentUtterance.rate = parseFloat(speedRange.value);
+      }
+    });
+
+    // Selection playback
     playSelectionBtn.addEventListener('click', () => {
-      const selection = window.getSelection().toString().trim();
-      const text = selection || inputText.value.trim();
-      if(!text) return;
-      speakText(text);
-    });
-    stopSelectionBtn.addEventListener('click', () => { if(synth) synth.cancel(); });
-
-    // Speed control live
-    speedRange.addEventListener('input', (e) => { speedValue.textContent = e.target.value + 'x'; if(currentUtterance && synth.speaking){ synth.cancel(); speakText(inputText.value.trim()); } });
-
-    // Live updates while typing (throttled)
-    let typingTimeout = null;
-    inputText.addEventListener('input', () => {
-      updateCounts(inputText.value);
-      if(typingTimeout) clearTimeout(typingTimeout);
-      typingTimeout = setTimeout(() => renderBraille(), 220);
+      const selection = window.getSelection().toString();
+      if (selection.trim()) {
+        speakText(selection);
+      }
     });
 
-    // Initial render
+    stopSelectionBtn.addEventListener('click', () => {
+      if (synth.speaking || synth.pending) synth.cancel();
+      document.querySelectorAll('.char.highlight').forEach(el => el.classList.remove('highlight'));
+    });
+
+    // Test vibration button
+    testVibrateBtn.addEventListener('click', () => {
+      if ("vibrate" in navigator) {
+        navigator.vibrate([200, 100, 200]); // buzz-pause-buzz
+      } else {
+        alert("This device/browser does not support vibration.");
+      }
+    });
+
+    // Initialize
     renderBraille();
-
-    // Accessibility: keyboard focus outline improvement
-    document.addEventListener('keydown', (e) => { if(e.key === 'Tab') document.body.classList.add('show-focus'); }, {once:true});
-
-    // Disable vibration toggle if unsupported
-    if(!('vibrate' in navigator)){
-      vibrateToggle.disabled = true;
-      vibrateToggle.parentElement && (vibrateToggle.parentElement.title = 'Vibration not supported on this device');
-    }
-
   </script>
 </body>
 </html>
