@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Digital Braille Book Reader</title>
+  <meta name="description" content="Responsive Digital Braille Book Reader: text → Unicode Grade 1 Braille, speech, vibration, download, dark mode" />
+  <style>
+    :root{
+      --bg: #f7f9fc;
+      --card: #ffffff;
+      --accent: #2563eb;
+      --muted: #6b7280;
+      --surface-2: #eef3ff;
+      --radius: 12px;
+    }
+
+    /* Dark theme variables */
+    body.dark{
+      --bg: #0b1220;
+      --card: #071126;
+      --accent: #60a5fa;
+      --muted: #a1a9b8;
+      --surface-2: #0e1724;
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;padding:18px;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial;line-height:1.4;
+      background:linear-gradient(180deg,#eef2ff 0%, var(--bg) 100%); color:#0f172a;
+      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    }
+
+    .wrap{max-width:1100px;margin:0 auto}
+    header{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+    .logo{width:48px;height:48px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#7c3aed);display:grid;place-items:center;color:#fff;font-weight:700}
+    h1{font-size:1.25rem;margin:0}
+    p.lead{margin:4px 0 0;color:var(--muted);font-size:0.95rem}
+
+    .card{background:var(--card);border-radius:18px;box-shadow:0 8px 30px rgba(12,16,26,.06);padding:18px}
+
+    .grid{display:grid;grid-template-columns:1fr 360px;gap:18px}
+
+    label.meta{display:block;color:var(--muted);font-size:0.88rem;margin-bottom:6px}
+
+    textarea{width:100%;min-height:220px;padding:12px;border-radius:12px;border:1px solid #e6eef8;resize:vertical;font-size:1rem;background:transparent;color:inherit}
+    input[type="file"]{font-size:0.95rem}
+
+    .side{display:flex;flex-direction:column;gap:10px}
+    .row{display:flex;gap:8px}
+
+    .btn{background:var(--accent);color:#fff;border:none;padding:10px 12px;border-radius:10px;cursor:pointer;font-weight:600;transition:all .14s;min-height:44px}
+    .btn:hover{transform:translateY(-2px)}
+    .btn.ghost{background:transparent;color:var(--accent);border:1px solid rgba(37,99,235,.12)}
+    .btn.small{padding:8px 10px;min-height:38px}
+
+    .controls-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+    .output{margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .panel{background:linear-gradient(180deg,#fff,var(--surface-2));padding:14px;border-radius:14px;border:1px solid rgba(14,22,36,.03)}
+
+    .braille{font-size:44px;line-height:1.2;letter-spacing:8px;min-height:220px;display:flex;flex-wrap:wrap;align-items:flex-start;padding:8px}
+    .braille .char{padding:8px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;min-width:56px;text-align:center;cursor:pointer;transition:all .12s}
+    .braille .char:hover{background:rgba(37,99,235,.08)}
+    .braille .char.highlight{background:rgba(37,99,235,.12);outline:2px solid rgba(37,99,235,.06)}
+
+    .meta{color:var(--muted);font-size:0.9rem}
+
+    .audio-controls{display:flex;gap:8px;margin-top:8px}
+    .speed-control{display:flex;align-items:center;gap:8px;margin-top:8px}
+    .speed-control input[type=range]{width:130px}
+
+    footer{margin-top:14px;color:var(--muted);font-size:0.9rem}
+
+    /* Responsive */
+    @media (max-width:980px){
+      .grid{grid-template-columns:1fr 320px}
+    }
+    @media (max-width:780px){
+      .grid{grid-template-columns:1fr}
+      .output{grid-template-columns:1fr}
+      .braille{font-size:40px}
+    }
+    @media (max-width:420px){
+      .braille{font-size:34px}
+      .braille .char{min-width:48px;padding:6px}
+      .btn{min-height:40px}
+      textarea{min-height:160px}
+    }
+
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo" aria-hidden>DB</div>
+      <div>
+        <h1>Digital Braille Book Reader</h1>
+        <p class="lead">Convert text to Grade&nbsp;1 Braille (Unicode), play speech, tactile vibration &amp; download — responsive and accessible.</p>
+      </div>
+    </header>
+
+    <main class="card" role="region" aria-label="Digital Braille Reader">
+      <div class="grid">
+        <section>
+          <div class="controls-top" style="margin-bottom:10px;justify-content:space-between;align-items:center">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <label class="meta" for="inputText">Enter text or paste content</label>
+            </div>
+
+            <div style="display:flex;gap:8px;align-items:center">
+              <button id="darkToggle" class="btn small" aria-pressed="false" title="Toggle dark mode">Dark</button>
+              <button id="downloadBtn" class="btn small">Download</button>
+              <button id="clearBtn" class="btn ghost small">Clear</button>
+            </div>
+          </div>
+
+          <textarea id="inputText" aria-label="Text input">The quick brown fox jumps over the lazy dog.</textarea>
+
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:12px;flex-wrap:wrap">
+            <div style="display:flex;gap:10px;align-items:center">
+              <label class="meta">Upload .txt</label>
+              <input id="fileInput" type="file" accept="text/plain" aria-label="Upload text file">
+            </div>
+
+            <div class="meta" style="text-align:right">Character count: <strong id="charCount">0</strong> &nbsp;•&nbsp; Word count: <strong id="wordCount">0</strong></div>
+          </div>
+        </section>
+
+        <aside class="side">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div class="meta">Controls</div>
+            <div class="row">
+              <button id="convertBtn" class="btn">Convert</button>
+              <button id="readBtn" class="btn">Read</button>
+              <button id="stopBtn" class="btn ghost">Stop</button>
+            </div>
+
+            <div style="display:flex;gap:8px;align-items:center;justify-content:space-between">
+              <div style="display:flex;flex-direction:column">
+                <label class="meta">Speech speed</label>
+                <div class="speed-control">
+                  <input id="speedRange" type="range" min="0.5" max="2" step="0.1" value="1" aria-label="Speech speed">
+                  <span id="speedValue" class="meta">1x</span>
+                </div>
+              </div>
+
+              <div style="display:flex;flex-direction:column;align-items:flex-end">
+                <label class="meta" for="vibrateToggle">Vibration</label>
+                <input id="vibrateToggle" type="checkbox" aria-label="Enable vibration"> 
+              </div>
+            </div>
+
+            <div class="meta">Tip: tap any Braille cell to feel a short vibration (if supported). Braille output is shown character-by-character and available in an aria-live region.</div>
+          </div>
+        </aside>
+      </div>
+
+      <div class="output" style="margin-top:16px">
+        <div class="panel" aria-label="Braille visual output">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <strong>Braille (visual)</strong>
+            <div class="meta">Unicode Grade&nbsp;1</div>
+          </div>
+          <div id="brailleOutput" class="braille" aria-live="polite"></div>
+        </div>
+
+        <div class="panel" aria-label="Reading controls">
+          <div><strong>Playback</strong></div>
+          <div style="margin-top:8px" class="audio-controls">
+            <button id="playSelectionBtn" class="btn small">Play Selection</button>
+            <button id="stopSelectionBtn" class="btn ghost small">Stop</button>
+          </div>
+
+          <div style="margin-top:12px">
+            <div class="meta">Click a Braille cell to highlight it and optionally vibrate. Download braille output or the original text. Works offline in modern browsers.</div>
+          </div>
+
+          <div style="margin-top:12px">
+            <div class="meta">References: Grade 1 mapping — basic letters, punctuation, numbers (numeric indicator applied).</div>
+          </div>
+        </div>
+      </div>
+
+      <footer>
+        <p class="meta">This reader converts text to Grade 1 Braille using Unicode Braille patterns. It includes simple numeric and capital indicators. Not a substitute for certified Braille transcribers for production materials.</p>
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    // ----- Braille map (Grade 1 basics) -----
+    const baseMap = {
+      'a':'⠁','b':'⠃','c':'⠉','d':'⠙','e':'⠑','f':'⠋','g':'⠛','h':'⠓','i':'⠊','j':'⠚',
+      'k':'⠅','l':'⠇','m':'⠍','n':'⠝','o':'⠕','p':'⠏','q':'⠟','r':'⠗','s':'⠎','t':'⠞',
+      'u':'⠥','v':'⠧','w':'⠺','x':'⠭','y':'⠽','z':'⠵',
+      ' ':'⠀',
+      ',':'⠂','.':'⠲','?':'⠦','!':'⠖',';':'⠆',':':'⠒','-':'⠤','(':'⠶',')':'⠶','"':'⠦',"'":"⠄"
+    };
+
+    // digits map uses letters a-j but require numeric indicator ⠼ before a run of digits
+    const digitMap = {'1':'⠁','2':'⠃','3':'⠉','4':'⠙','5':'⠑','6':'⠋','7':'⠛','8':'⠓','9':'⠊','0':'⠚'};
+
+    const CAPITAL_INDICATOR = '⠠';
+    const NUMERIC_INDICATOR = '⠼';
+
+    // DOM refs
+    const inputText = document.getElementById('inputText');
+    const brailleOutput = document.getElementById('brailleOutput');
+    const fileInput = document.getElementById('fileInput');
+    const convertBtn = document.getElementById('convertBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const vibrateToggle = document.getElementById('vibrateToggle');
+    const readBtn = document.getElementById('readBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const speedRange = document.getElementById('speedRange');
+    const speedValue = document.getElementById('speedValue');
+    const charCount = document.getElementById('charCount');
+    const wordCount = document.getElementById('wordCount');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const darkToggle = document.getElementById('darkToggle');
+    const playSelectionBtn = document.getElementById('playSelectionBtn');
+    const stopSelectionBtn = document.getElementById('stopSelectionBtn');
+
+    let synth = window.speechSynthesis;
+    let currentUtterance = null;
+
+    // Helper: convert text to an array where each input character produces a braille string (may include indicators)
+    function convertToBraillePerChar(text){
+      const chars = Array.from(text);
+      let result = [];
+      let inNumberRun = false;
+
+      for(let i=0;i<chars.length;i++){
+        const ch = chars[i];
+        // handle digits: if digit and not inNumberRun -> add numeric indicator; continue numeric run until non-digit
+        if(/\d/.test(ch)){
+          if(!inNumberRun){
+            inNumberRun = true;
+            result.push(NUMERIC_INDICATOR + (digitMap[ch] || '⠿'));
+          } else {
+            result.push(digitMap[ch] || '⠿');
+          }
+        } else {
+          inNumberRun = false;
+          // letters
+          if(/[A-Z]/.test(ch)){
+            const lower = ch.toLowerCase();
+            result.push(CAPITAL_INDICATOR + (baseMap[lower] || '⠿'));
+          } else if(/[a-z]/.test(ch)){
+            result.push(baseMap[ch] || '⠿');
+          } else if(ch === ' '){
+            result.push(baseMap[' ']);
+          } else if(baseMap[ch]){
+            result.push(baseMap[ch]);
+          } else {
+            // unknown character fallback
+            result.push('⠿');
+          }
+        }
+      }
+      return result;
+    }
+
+    function updateCounts(text){
+      charCount.textContent = text.length;
+      wordCount.textContent = text.trim() ? text.trim().split(/\s+/).length : 0;
+    }
+
+    function renderBraille(){
+      const text = inputText.value || '';
+      const braillePerChar = convertToBraillePerChar(text);
+
+      brailleOutput.innerHTML = ''; // clear
+
+      braillePerChar.forEach((b, idx) => {
+        const span = document.createElement('span');
+        span.className = 'char';
+        span.setAttribute('role','button');
+        span.setAttribute('tabindex','0');
+        span.dataset.index = idx;
+        span.dataset.original = (text[idx] || '');
+        span.title = `Original: "${text[idx] || 'space'}" → ${b}`;
+        span.textContent = b;
+
+        // click/vibrate/highlight
+        span.addEventListener('click', () => {
+          if(vibrateToggle.checked && navigator.vibrate){ navigator.vibrate(80); }
+          highlightCell(idx);
+        });
+        span.addEventListener('keydown', (e) => { if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); span.click(); } });
+
+        brailleOutput.appendChild(span);
+      });
+
+      updateCounts(text);
+    }
+
+    function highlightCell(idx){
+      document.querySelectorAll('.braille .char').forEach(el => el.classList.remove('highlight'));
+      const el = document.querySelector('.braille .char[data-index="'+idx+'"]');
+      if(el){ el.classList.add('highlight'); setTimeout(()=> el.classList.remove('highlight'),400); }
+    }
+
+    // File upload handler
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if(!file) return;
+      if(file.type !== 'text/plain'){
+        alert('Please upload a plain .txt file');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (ev) => { inputText.value = ev.target.result; renderBraille(); };
+      reader.readAsText(file);
+    });
+
+    // Buttons
+    convertBtn.addEventListener('click', renderBraille);
+    clearBtn.addEventListener('click', () => { inputText.value = ''; renderBraille(); fileInput.value = ''; if(synth) synth.cancel(); });
+
+    // Download braille or original
+    downloadBtn.addEventListener('click', () => {
+      const brailleText = Array.from(document.querySelectorAll('.braille .char')).map(s => s.textContent).join('');
+      const blob = new Blob([brailleText], {type:'text/plain'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'braille-output.txt';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+
+    // Dark mode
+    darkToggle.addEventListener('click', () => {
+      const isDark = document.body.classList.toggle('dark');
+      darkToggle.setAttribute('aria-pressed', String(isDark));
+      darkToggle.textContent = isDark ? 'Light' : 'Dark';
+    });
+
+    // Speech
+    function speakText(text){
+      if(!('speechSynthesis' in window)){
+        alert('Speech Synthesis not supported in this browser.');
+        return;
+      }
+      if(synth.speaking) synth.cancel();
+
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.rate = parseFloat(speedRange.value) || 1;
+      utter.pitch = 1;
+      currentUtterance = utter;
+
+      // Try to highlight words using boundary events when supported
+      utter.onboundary = (ev) => {
+        if(ev.name === 'word'){
+          // approximate: find which character index corresponds to the word by counting characters up to charIndex
+          // this is an approximation because charIndex counts original text characters
+          const charIndex = ev.charIndex || 0;
+          const idx = Math.min(charIndex, (inputText.value.length-1));
+          highlightCell(idx);
+        }
+      };
+
+      utter.onend = () => { currentUtterance = null; document.querySelectorAll('.char.highlight').forEach(el => el.classList.remove('highlight')); };
+
+      synth.speak(utter);
+    }
+
+    readBtn.addEventListener('click', () => {
+      speakText(inputText.value.trim());
+    });
+    stopBtn.addEventListener('click', () => { if(synth) synth.cancel(); document.querySelectorAll('.char.highlight').forEach(el => el.classList.remove('highlight')); });
+
+    // Play selection: speak selected text or fallback to full text
+    playSelectionBtn.addEventListener('click', () => {
+      const selection = window.getSelection().toString().trim();
+      const text = selection || inputText.value.trim();
+      if(!text) return;
+      speakText(text);
+    });
+    stopSelectionBtn.addEventListener('click', () => { if(synth) synth.cancel(); });
+
+    // Speed control live
+    speedRange.addEventListener('input', (e) => { speedValue.textContent = e.target.value + 'x'; if(currentUtterance && synth.speaking){ synth.cancel(); speakText(inputText.value.trim()); } });
+
+    // Live updates while typing (throttled)
+    let typingTimeout = null;
+    inputText.addEventListener('input', () => {
+      updateCounts(inputText.value);
+      if(typingTimeout) clearTimeout(typingTimeout);
+      typingTimeout = setTimeout(() => renderBraille(), 220);
+    });
+
+    // Initial render
+    renderBraille();
+
+    // Accessibility: keyboard focus outline improvement
+    document.addEventListener('keydown', (e) => { if(e.key === 'Tab') document.body.classList.add('show-focus'); }, {once:true});
+
+    // Disable vibration toggle if unsupported
+    if(!('vibrate' in navigator)){
+      vibrateToggle.disabled = true;
+      vibrateToggle.parentElement && (vibrateToggle.parentElement.title = 'Vibration not supported on this device');
+    }
+
+  </script>
+</body>
+</html>
